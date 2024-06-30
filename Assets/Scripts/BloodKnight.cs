@@ -45,6 +45,8 @@ public class BloodKnight : MonoBehaviour
     private UiButtonHanlder    blockHanlder;
 
     private float              LastTimeAttack;
+    private float              TimeBeAttacked;
+    private bool               CanBeAction;
 
     private void Start()
     {
@@ -74,6 +76,8 @@ public class BloodKnight : MonoBehaviour
         {
             Username.text = PlayerPrefs.GetString("username");
         }
+
+        CanBeAction = true;
     }
 
     private void Update()
@@ -84,13 +88,16 @@ public class BloodKnight : MonoBehaviour
         }
         if(!isDeath)
         {
-            OnClickLeftBtn();
-            OnClickRightBtn();
-            OnClickAttackBtn();
-            OnClickBlockBtn();
-            OnClickJumpBtn();
-            
+            if (Time.time - TimeBeAttacked > 0.7f) CanBeAction = true;
+            if(CanBeAction)
+            {
+                OnClickLeftBtn();
+                OnClickRightBtn();
+                OnClickAttackBtn();
+                OnClickBlockBtn();
+                OnClickJumpBtn();
 
+            }
             UpdateAnimation();
         }
         else
@@ -117,6 +124,8 @@ public class BloodKnight : MonoBehaviour
         if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
         if (transform.GetComponent<BaseObject>().isHurt)
         {
+            TimeBeAttacked = Time.time;
+            CanBeAction = false;
             animator.SetTrigger("Hurt");
             transform.GetComponent<BaseObject>().isHurt = false;
         }
@@ -228,11 +237,13 @@ public class BloodKnight : MonoBehaviour
         {
             animator.SetBool("Block", true);
             Shield.GetComponent<BoxCollider2D>().enabled = true;
+            rb2D.bodyType = RigidbodyType2D.Static;
         }
         if (!blockHanlder.isButtonHeld)
         {
             animator.SetBool("Block", false);
             Shield.GetComponent<BoxCollider2D>().enabled = false;
+            rb2D.bodyType = RigidbodyType2D.Dynamic;
         }
     }
 

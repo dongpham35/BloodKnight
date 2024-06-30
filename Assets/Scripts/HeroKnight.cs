@@ -42,6 +42,8 @@ public class HeroKnight : MonoBehaviour
 
     private float           TimeSinceAttack = 0.0f;
     private int             comboAttack = 0;
+    private float           TimeBeAttacked;
+    private bool            CanBeAction;
 
     private float           Speed;
     private float           Roll_Speed;
@@ -75,6 +77,8 @@ public class HeroKnight : MonoBehaviour
         {
             Username.text = PlayerPrefs.GetString("username");
         }
+
+        CanBeAction = true;
     }
 
 
@@ -87,11 +91,15 @@ public class HeroKnight : MonoBehaviour
         }
         if (!isDeath)
         {
-            RightBtn();
-            LeftBtn();
-            AttackBtn();
-            JumpBtn();
-            BlockBtn();
+            if (Time.time - TimeBeAttacked > 0.5f) CanBeAction = true;
+            if (CanBeAction)
+            {
+                RightBtn();
+                LeftBtn();
+                AttackBtn();
+                JumpBtn();
+                BlockBtn();
+            }
 
             UpdateAnimation();
         }
@@ -116,6 +124,8 @@ public class HeroKnight : MonoBehaviour
         if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
         if (transform.GetComponent<BaseObject>().isHurt)
         {
+            TimeBeAttacked = Time.time;
+            CanBeAction = false;
             animator2D.SetTrigger("Hurt");
             transform.GetComponent<BaseObject>().isHurt = false;
         }
@@ -238,12 +248,14 @@ public class HeroKnight : MonoBehaviour
             isBlock = true;
             animator2D.SetTrigger("Block");
             Shield.GetComponent<BoxCollider2D>().enabled = true;
+            rb2D.bodyType = RigidbodyType2D.Static;
         }
         if(Block_Hanlder.isButtonHeld && isBlock && isGround())
         {
             isIdle_Block = true;
             animator2D.SetBool("Idle_Block", isIdle_Block);
             Shield.GetComponent<BoxCollider2D>().enabled = true;
+            rb2D.bodyType = RigidbodyType2D.Static;
         }
 
         if (!Block_Hanlder.isButtonHeld)
@@ -252,6 +264,7 @@ public class HeroKnight : MonoBehaviour
             isBlock = false;
             animator2D.SetBool("Idle_Block", isIdle_Block) ;
             Shield.GetComponent<BoxCollider2D>().enabled = false;
+            rb2D.bodyType = RigidbodyType2D.Dynamic;
         }
     }
 

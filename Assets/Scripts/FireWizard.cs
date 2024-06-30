@@ -1,12 +1,15 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class FireWizard : MonoBehaviour
 {
-    [SerializeField] GameObject[] LimitedPointCanMove;
-    [SerializeField] GameObject[] PointsTeleport;
+    [SerializeField] float[]      LimiedPointX;
+    [SerializeField] float[]      LimiedPointY;
+    [SerializeField] GameObject   ProjectilePrefab;
+    [SerializeField] float        CoolDownAttack = 1.5f;
 
     List<GameObject>          players = new List<GameObject>();
     private GameObject        focusPlayer;
@@ -19,6 +22,8 @@ public class FireWizard : MonoBehaviour
 
     private float             Speed;
     private float             Damage;
+    private float             pointX;
+    private float             pointY;
 
     enum NorState { Idle, Move}
     NorState stateEnemy = NorState.Idle;
@@ -27,7 +32,13 @@ public class FireWizard : MonoBehaviour
     private bool              isDeath;
     private bool              isShow;
 
-    private GameObject        pointFocus;
+    private Vector3           pointFocus;
+    private bool              NorAttack;
+    private bool              SkillAttack;
+    private float             LastTimeDamaged;
+    private bool              StateSkillAttack;
+    private bool              CanBeAction;
+    private float             TimeBeAttacked;
 
     private void Start()
     {
@@ -42,10 +53,16 @@ public class FireWizard : MonoBehaviour
 
         focusPlayer = null;
         minDistance = 0;
+        pointX = Random.Range(LimiedPointX[0], LimiedPointX[1]);
+        pointY = Random.Range(LimiedPointY[0], LimiedPointY[1]);
+        pointFocus = new Vector3(pointX, pointY, 0);
+        LastTimeDamaged = 0.0f;
+        CanBeAction = true;
     }
 
     private void Update()
     {
+       
         if (transform.GetComponent<BaseObject>().currenHealth == 0)
         {
             isDeath = true;
@@ -54,8 +71,6 @@ public class FireWizard : MonoBehaviour
         if (isDeath)
         {
             animator.SetTrigger("Death");
-            StartCoroutine(MoveToMenu());
-            SceneManager.LoadScene("MenuGame");
         }
 
         if (GameObject.FindGameObjectWithTag("Player"))
@@ -70,7 +85,28 @@ public class FireWizard : MonoBehaviour
 
         if(!isDeath)
         {
-
+            LastTimeDamaged += Time.deltaTime;
+            if (Time.time - TimeBeAttacked >= 1.2f) CanBeAction = true;
+            if(CanBeAction)
+            {
+                if (focusPlayer != null)
+                {
+                    Direction.x = focusPlayer.transform.position.x - transform.position.x;
+                    MoveToAttackPlayer();
+                }
+                else
+                {
+                    Direction.x = pointFocus.x - transform.position.x;
+                    MoveNormal();
+                }
+            }
+            if(transform.GetComponent<BaseObject>().isHurt)
+            {
+                CanBeAction = false;
+                TimeBeAttacked = Time.time;
+                animator.SetTrigger("Hurt");
+                transform.GetComponent<BaseObject>().isHurt = false;
+            }
             UpdateAnimation();
         }
 
@@ -85,7 +121,7 @@ public class FireWizard : MonoBehaviour
             GameObject[] li_Player = GameObject.FindGameObjectsWithTag("Player");
             foreach(GameObject player in  li_Player)
             {
-                if(Vector2.Distance(transform.position, player.transform.position) <= 25f)
+                if(Vector2.Distance(transform.position, player.transform.position) <= 5f)
                 {
                     if (focusPlayer == null)
                     {
@@ -107,16 +143,12 @@ public class FireWizard : MonoBehaviour
         }
     }
 
-    IEnumerator MoveToMenu()
-    {
-        yield return new WaitForSeconds(1.5f);
-    }
 
     private void FindPlayerHasMinDistance()
     {
         foreach (GameObject player in players)
         {
-            if (Vector2.Distance(transform.position, player.transform.position) > 25f) continue;
+            if (Vector2.Distance(transform.position, player.transform.position) > 5f) continue;
             if (minDistance > Vector2.Distance(transform.position, player.transform.position))
             {
                 focusPlayer = player;
@@ -127,10 +159,11 @@ public class FireWizard : MonoBehaviour
 
     private void UpdateAnimation()
     {
+        
         if(Direction.x != 0f)
         {
             if (Direction.x > .1f) spriterenderer.flipX = false;
-            else spriterenderer.flipY = true;
+            else spriterenderer.flipX = true;
 
             stateEnemy = NorState.Move;
         }
@@ -149,79 +182,107 @@ public class FireWizard : MonoBehaviour
 
     }
 
-    private void Move()
+    private void MoveToAttackPlayer()
     {
-        if(focusPlayer != null)
+        if (Random.Range(0, 50) % 2 == 0 && !NorAttack && !SkillAttack) NorAttack = true;
+        else if((Random.Range(0, 50) % 2 != 0 && !NorAttack && !SkillAttack)) SkillAttack = true;
+        if (NorAttack)
         {
-            StopCoroutine(ChangePoint());
-            
+            MoveNorToPlayer();
         }
-        else
+        if(SkillAttack && !StateSkillAttack)
         {
-            StartCoroutine(ChangePoint());
-            if(pointFocus != null)
+            TeleportSkill();
+        }
+    }
+
+    private void MoveNormal()
+    {
+        if(Vector2.Distance(transform.position, pointFocus) < 0.2f)
+        {
+            pointX = Random.Range(LimiedPointX[0], LimiedPointX[1]);
+            pointY = Random.Range(LimiedPointY[0], LimiedPointY[1]);
+            pointFocus = new Vector3(pointX, pointY, 0);
+        }
+        transform.position = Vector2.MoveTowards(transform.position, pointFocus, Time.deltaTime * Speed * 0.5f);
+        stateEnemy = NorState.Move;
+    }
+
+
+    private void MoveNorToPlayer()
+    {
+        //move enemy to player
+        if (Vector2.Distance(transform.position, focusPlayer.transform.position) < 0.5f) NorAttack = false;
+        transform.position = Vector2.MoveTowards(transform.position, focusPlayer.transform.position, Time.deltaTime * Speed);
+        Direction.x = (focusPlayer.transform.position - transform.position).x;
+        if(LastTimeDamaged > CoolDownAttack)
+        {
+            RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Player", "Shield"));
+            if (ray.collider != null)
             {
-                if(Vector2.Distance(transform.position, pointFocus.transform.position) <= 0.2f)
-                {
-                    Direction = Vector2.zero;
-                }
-                else
-                {
-                    Vector2.MoveTowards(transform.position, pointFocus.transform.position, Speed);
-                    stateEnemy = NorState.Move;
-                }
+                LastTimeDamaged = 0.0f;
+                animator.SetTrigger("Attack");
+                if (ray.collider.gameObject.CompareTag("Shield")) return;
+                BaseObject obj = ray.collider.GetComponent<BaseObject>();
+                obj.OnBeAttacked(Damage);
+                NorAttack = false;
             }
         }
     }
 
-    IEnumerator ChangePoint()
+    private void TeleportSkill()
     {
-        while (true)
-        {
-            int indexPoint = Random.Range(0, 4);
-            pointFocus = LimitedPointCanMove[indexPoint];
-            yield return new WaitForSeconds(6.5f);
-        }
+        Direction.x = focusPlayer.transform.position.x - transform.position.x;
+        StateSkillAttack = true;
+        pointX = Random.Range(LimiedPointX[0], LimiedPointX[1]);
+        pointY = Random.Range(LimiedPointY[0], LimiedPointY[1]);
+        Vector3 point = new Vector3(pointX, pointY, 0);
+        StartCoroutine(Teleport(point));
+        
     }
 
-    private void MoveNorToPlayer()
+    private void CloneProjetile(GameObject projectile ,int SumofProjectile, Vector3 startPoint, float speed)
     {
-        while(Vector2.Distance(transform.position, focusPlayer.transform.position) > 0.7f)
+        LastTimeDamaged = 0.0f;
+        for(int i = 0; i < SumofProjectile; i++)
         {
-            Vector2.MoveTowards(transform.position, focusPlayer.transform.position, Speed * Time.deltaTime * 1.5f);
+            float angle = i * (360 / SumofProjectile);
+            float radian = angle * Mathf.Deg2Rad;
+
+            Vector3 direction_projectile = new Vector3(Mathf.Cos(radian), Mathf.Sin(radian), 0);
+
+            GameObject clone_projectile = Instantiate(projectile, startPoint, Quaternion.Euler(0, 0, 90));
+
+            Rigidbody2D rb = clone_projectile.GetComponent<Rigidbody2D>();
+            if(rb != null )
+            {
+                rb.velocity = direction_projectile * speed * 0.5f;
+            }
         }
-        Direction.x = (focusPlayer.transform.position - transform.position).x;
-        RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Player"));
-        if(ray.collider != null)
-        {
-            if (ray.collider.gameObject.CompareTag("Shield")) return;
-            BaseObject obj = ray.collider.GetComponent<BaseObject>();
-            obj.OnBeAttacked(Damage);
-        }
+        StateSkillAttack = false;
+        SkillAttack = false;
     }
 
-    private void Teleport()
+    IEnumerator Teleport(Vector3 point)
     {
-        int index = Random.Range(0, 3);
-        GameObject point = PointsTeleport[index];
         animator.SetTrigger("Hide");
-        isShow = true;
+
+        yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length);
         spriterenderer.enabled = false;
         boxCollider.enabled = false;
-        transform.position = point.transform.position;
-        StartCoroutine(WaitSecond(1f));
-
-        animator.SetBool("Show", isShow);
-        StartCoroutine(WaitSecond(0.5f));
-        isShow = false;
+        gameObject.GetComponentInChildren<Canvas>().enabled = false;
+        transform.position = point;
+        yield return new WaitForSeconds(0.5f);
         spriterenderer.enabled = true;
         boxCollider.enabled = true;
-        animator.SetBool("Show", isShow);
-    }
-
-    IEnumerator WaitSecond(float seconds)
-    {
-        yield return new WaitForSeconds(seconds);
+        gameObject.GetComponentInChildren<Canvas>().enabled = true;
+        animator.SetTrigger("Show");
+        yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length);
+        if(LastTimeDamaged > 1.2f)
+        {
+            CloneProjetile(ProjectilePrefab, Random.Range(6, 12), transform.position, Speed * 2.1f);
+        }
+        
     }
 
 }
