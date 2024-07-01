@@ -98,6 +98,15 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
 
     public void OnClickbtnPlay()
     {
+        PlayerPrefs.SetInt("SelectedCharacter", indexSelected);
+        if (string.IsNullOrEmpty(ipfUsername.text)) PlayerPrefs.SetString("Username", "DongPham");
+        else PlayerPrefs.SetString("Username", ipfUsername.text);
 
+        PhotonNetwork.JoinLobby();
+    }
+
+    public override void OnJoinedLobby()
+    {
+        PhotonNetwork.LoadLevel("Map");
     }
 }
