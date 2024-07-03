@@ -1,8 +1,9 @@
+using Photon.Pun;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AngryPig : MonoBehaviour
+public class AngryPig : MonoBehaviourPunCallbacks
 {
     [SerializeField] Vector2       SpawnPoint;
 
@@ -12,6 +13,7 @@ public class AngryPig : MonoBehaviour
     private Rigidbody2D            rb2D;
     private Animator               animator;
     private SpriteRenderer         spriteRenderer;
+    private PhotonView             view;
 
     private float                  Speed;
     private float                  Damage;
@@ -32,11 +34,18 @@ public class AngryPig : MonoBehaviour
 
     private Vector2                Direction;
 
+    private void Awake()
+    {
+        view = GetComponent<PhotonView>();
+    }
     private void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
-        animator = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (view.IsMine)
+        {
+            rb2D = GetComponent<Rigidbody2D>();
+            animator = GetComponent<Animator>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
 
         Speed = GetComponent<BaseObject>().Speed;
         Damage = GetComponent<BaseObject>().Damage;
@@ -60,85 +69,98 @@ public class AngryPig : MonoBehaviour
 
     private void Update()
     {
-        
-        if(GetComponent<BaseObject>().currenHealth == 0) isDeath = true;
-        if (isDeath) Destroy(gameObject);
-        if(!isDeath)
+
+        if (view.IsMine)
         {
-            LastTimeAttack += Time.deltaTime;
-            StartCoroutine(GetPlayersInRoom());
-            if (focusPlayer != null && MinDistance <= 5.5f && !isMoveToSpawnPoint) isSawPlayer = true;
-            else isSawPlayer = false;
-            //Move to Spawn point when enemy are distancing spawn point 15f
-            if(Vector2.Distance(transform.position, SpawnPoint) >= 15f && !isMoveToSpawnPoint)
+            if (GetComponent<BaseObject>().currenHealth == 0) isDeath = true;
+            if (isDeath) Destroy(gameObject);
+            if (!isDeath)
             {
-                Vector2 look = SpawnPoint - new Vector2(transform.position.x, transform.position.y);
-                Direction.x = look.normalized.x;
-                isReadyNorMove = true;
-                isMoveToSpawnPoint=true;
-                isSawPlayer = false;
-                focusPlayer = null;
-                MinDistance = 0.0f;
-            }
-            if(isMoveToSpawnPoint && Vector2.Distance(transform.position, SpawnPoint) <= 1.5f)
-            {
-                isMoveToSpawnPoint = false;
-            }
-
-            if(rb2D.velocity.x != 0 && !isSawPlayer)
-            {
-                RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
-                if(ray.collider != null)
+                LastTimeAttack += Time.deltaTime;
+                StartCoroutine(GetPlayersInRoom());
+                if (focusPlayer != null && MinDistance <= 5.5f && !isMoveToSpawnPoint) isSawPlayer = true;
+                else isSawPlayer = false;
+                //Move to Spawn point when enemy are distancing spawn point 15f
+                if (Vector2.Distance(transform.position, SpawnPoint) >= 15f && !isMoveToSpawnPoint)
                 {
-                    Direction *= -1;
-                    rb2D.velocity = rb2D.velocity.x * Direction;
+                    Vector2 look = SpawnPoint - new Vector2(transform.position.x, transform.position.y);
+                    Direction.x = look.normalized.x;
+                    isReadyNorMove = true;
+                    isMoveToSpawnPoint = true;
+                    isSawPlayer = false;
+                    focusPlayer = null;
+                    MinDistance = 0.0f;
                 }
+                if (isMoveToSpawnPoint && Vector2.Distance(transform.position, SpawnPoint) <= 1.5f)
+                {
+                    isMoveToSpawnPoint = false;
+                }
+
+                if (rb2D.velocity.x != 0 && !isSawPlayer)
+                {
+                    RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
+                    if (ray.collider != null)
+                    {
+                        Direction *= -1;
+                        rb2D.velocity = rb2D.velocity.x * Direction;
+                    }
+                }
+                LastTimeMove += Time.deltaTime;
+                if (LastTimeMove >= LimitedTimeToChangeState && !isMoveToSpawnPoint && !isSawPlayer)
+                {
+                    LastTimeMove = 0.0f;
+                    LimitedTimeToChangeState = Random.Range(5, 12) / 1.7f;
+                    isReadyNorMove = !isReadyNorMove;
+                }
+
+                if (isReadyNorMove && !isSawPlayer) NorMove();
+
+                if (isSawPlayer)
+                {
+                    MoveToPlayer();
+                    HitPlayer();
+                }
+
+
+                UpdateAnimation();
             }
-            LastTimeMove += Time.deltaTime;
-            if(LastTimeMove >= LimitedTimeToChangeState && !isMoveToSpawnPoint && !isSawPlayer)
-            {
-                LastTimeMove = 0.0f;
-                LimitedTimeToChangeState = Random.Range(5, 12) / 1.7f;
-                isReadyNorMove = !isReadyNorMove;
-            }
-
-            if (isReadyNorMove && !isSawPlayer) NorMove();
-
-            if (isSawPlayer )
-            {
-                MoveToPlayer();
-                HitPlayer();
-            }
-
-
-            UpdateAnimation();
         }
     }
 
     private void UpdateAnimation()
     {
-        if(rb2D.velocity.x > .1f)
+        if(view.IsMine)
         {
-            spriteRenderer.flipX = true;
-            stateAngryPig = NorState.Walk;
-            Direction = Vector2.right;
-            
-        }else if(rb2D.velocity.x < -.1f)
-        {
-            spriteRenderer.flipX = false;
-            stateAngryPig = NorState.Walk;
-            Direction = Vector2.left;
-        }
-        else
-        {
-            stateAngryPig = NorState.Idle;
-        }
+            if (rb2D.velocity.x > .1f)
+            {
+                spriteRenderer.flipX = true;
+                stateAngryPig = NorState.Walk;
+                Direction = Vector2.right;
 
-        if (isSawPlayer) stateAngryPig = NorState.Run;
+            }
+            else if (rb2D.velocity.x < -.1f)
+            {
+                spriteRenderer.flipX = false;
+                stateAngryPig = NorState.Walk;
+                Direction = Vector2.left;
+            }
+            else
+            {
+                stateAngryPig = NorState.Idle;
+            }
 
-        animator.SetInteger("NorState", (int)stateAngryPig);    
+            if (isSawPlayer) stateAngryPig = NorState.Run;
+            photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriteRenderer.flipX);
+            animator.SetInteger("NorState", (int)stateAngryPig);
+        }   
     }
 
+    [PunRPC]
+    public void UpdateSpriteRenderer(bool state)
+    {
+        SpriteRenderer sprite = GetComponent<SpriteRenderer>();
+        sprite.flipX = state;
+    }
     private void NorMove()
     {
         rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
@@ -148,7 +170,10 @@ public class AngryPig : MonoBehaviour
     {
         Vector3 look = focusPlayer.transform.position - transform.position;
         Direction.x = look.normalized.x;
-        rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+        if (Vector3.Distance(focusPlayer.transform.position, transform.position) >= 0.4f)
+        {
+            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+        }
         RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
         if (ray.collider != null && MinDistance >= 0.7f)
         {
@@ -195,8 +220,23 @@ public class AngryPig : MonoBehaviour
                 LastTimeAttack = 0.0f;
                 if (ray.collider.CompareTag("Shield")) return;
                 BaseObject obj = ray.collider.GetComponent<BaseObject>();
-                obj.OnBeAttacked(Damage);
+                if (obj != null)
+                {
+                    obj.OnBeAttacked(Damage);
+                    PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                    if (targetPhotonView != null)
+                    {
+                        targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                    }
+                }
             }
         }
+    }
+
+    [PunRPC]
+    public void SendViewIdBeAttacked(float damage)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.OnBeAttacked(damage);
     }
 }

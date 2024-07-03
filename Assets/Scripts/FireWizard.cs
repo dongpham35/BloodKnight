@@ -1,10 +1,11 @@
+using Photon.Pun;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class FireWizard : MonoBehaviour
+public class FireWizard : MonoBehaviourPunCallbacks
 {
     [SerializeField] float[]      LimiedPointX;
     [SerializeField] float[]      LimiedPointY;
@@ -19,6 +20,7 @@ public class FireWizard : MonoBehaviour
     private SpriteRenderer    spriterenderer;
     private Animator          animator;
     private BoxCollider2D     boxCollider;
+    private PhotonView        view;
 
     private float             Speed;
     private float             Damage;
@@ -40,12 +42,19 @@ public class FireWizard : MonoBehaviour
     private bool              CanBeAction;
     private float             TimeBeAttacked;
 
+    private void Awake()
+    {
+        view = GetComponent<PhotonView>();
+    }
     private void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
-        spriterenderer = GetComponent<SpriteRenderer>();
-        animator = GetComponent<Animator>();
-        boxCollider = GetComponent<BoxCollider2D>();
+        if(view.IsMine)
+        {
+            rb2D = GetComponent<Rigidbody2D>();
+            spriterenderer = GetComponent<SpriteRenderer>();
+            animator = GetComponent<Animator>();
+            boxCollider = GetComponent<BoxCollider2D>();
+        }
 
         Direction = Vector2.right;
         Speed = transform.GetComponent<BaseObject>().Speed;
@@ -62,55 +71,61 @@ public class FireWizard : MonoBehaviour
 
     private void Update()
     {
-       
-        if (transform.GetComponent<BaseObject>().currenHealth == 0)
-        {
-            isDeath = true;
-        }
 
-        if (isDeath)
+        if (view.IsMine)
         {
-            animator.SetTrigger("Death");
-        }
-
-        if (GameObject.FindGameObjectWithTag("Player"))
-        {
-            StartCoroutine(GetPlayerInRoom());
-            FindPlayerHasMinDistance();
-        }
-        else
-        {
-            StopCoroutine(GetPlayerInRoom());
-        }
-
-        if(!isDeath)
-        {
-            LastTimeDamaged += Time.deltaTime;
-            if (Time.time - TimeBeAttacked >= 1.2f) CanBeAction = true;
-            if(CanBeAction)
+            if (transform.GetComponent<BaseObject>().currenHealth == 0)
             {
-                if (focusPlayer != null)
-                {
-                    Direction.x = focusPlayer.transform.position.x - transform.position.x;
-                    MoveToAttackPlayer();
-                }
-                else
-                {
-                    Direction.x = pointFocus.x - transform.position.x;
-                    MoveNormal();
-                }
+                isDeath = true;
             }
-            if(transform.GetComponent<BaseObject>().isHurt)
+
+            if (isDeath)
             {
-                CanBeAction = false;
-                TimeBeAttacked = Time.time;
-                animator.SetTrigger("Hurt");
-                transform.GetComponent<BaseObject>().isHurt = false;
+                animator.SetTrigger("Death");
             }
-            UpdateAnimation();
+
+            if (GameObject.FindGameObjectWithTag("Player"))
+            {
+                StartCoroutine(GetPlayerInRoom());
+                FindPlayerHasMinDistance();
+            }
+            else
+            {
+                StopCoroutine(GetPlayerInRoom());
+            }
+
+            if (!isDeath)
+            {
+                LastTimeDamaged += Time.deltaTime;
+                if (Time.time - TimeBeAttacked >= 1.2f) CanBeAction = true;
+                if (CanBeAction)
+                {
+                    if (focusPlayer != null)
+                    {
+                        Direction.x = focusPlayer.transform.position.x - transform.position.x;
+                        MoveToAttackPlayer();
+                    }
+                    else
+                    {
+                        Direction.x = pointFocus.x - transform.position.x;
+                        MoveNormal();
+                    }
+                }
+                if (transform.GetComponent<BaseObject>().isHurt)
+                {
+                    CanBeAction = false;
+                    TimeBeAttacked = Time.time;
+                    animator.SetTrigger("Hurt");
+                    transform.GetComponent<BaseObject>().isHurt = false;
+                }
+                UpdateAnimation();
+            }
+            else
+            {
+                MapSystem.instance.BossIsDie();
+            }
         }
 
-        
     }
 
     IEnumerator GetPlayerInRoom()
@@ -177,9 +192,16 @@ public class FireWizard : MonoBehaviour
             animator.SetTrigger("Hurt");
         }
 
-
+        photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriterenderer.flipX);
         animator.SetInteger("NorState", (int)stateEnemy);
 
+    }
+
+    [PunRPC]
+    public void UpdateSpriteRenderer(bool state)
+    {
+        SpriteRenderer sprite = GetComponent<SpriteRenderer>();
+        sprite.flipX = state;
     }
 
     private void MoveToAttackPlayer()
@@ -224,10 +246,25 @@ public class FireWizard : MonoBehaviour
                 animator.SetTrigger("Attack");
                 if (ray.collider.gameObject.CompareTag("Shield")) return;
                 BaseObject obj = ray.collider.GetComponent<BaseObject>();
-                obj.OnBeAttacked(Damage);
+                if (obj != null)
+                {
+                    obj.OnBeAttacked(Damage);
+                    PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                    if (targetPhotonView != null)
+                    {
+                        targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                    }
+                }
                 NorAttack = false;
             }
         }
+    }
+
+    [PunRPC]
+    public void SendViewIdBeAttacked(int viewId, float damage)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.OnBeAttacked(damage);
     }
 
     private void TeleportSkill()
@@ -251,7 +288,7 @@ public class FireWizard : MonoBehaviour
 
             Vector3 direction_projectile = new Vector3(Mathf.Cos(radian), Mathf.Sin(radian), 0);
 
-            GameObject clone_projectile = Instantiate(projectile, startPoint, Quaternion.Euler(0, 0, 90));
+            GameObject clone_projectile = PhotonNetwork.Instantiate(projectile.name, startPoint, Quaternion.Euler(0, 0, 90));
 
             Rigidbody2D rb = clone_projectile.GetComponent<Rigidbody2D>();
             if(rb != null )

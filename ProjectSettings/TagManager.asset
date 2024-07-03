@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Shield
   - Enemy
+  - Bullet
+  - Fruit
   layers:
   - Default
   - TransparentFX
@@ -17,7 +19,7 @@ TagManager:
   - Shield
   - Player
   - Enemy
-  - 
+  - Fruit
   - 
   - 
   - 

@@ -21,6 +21,7 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
     [SerializeField] private TMP_InputField ipfUsername;
 
     private int                              indexSelected;
+    private string                           defaultName;
 
     float[] BloodChar = new float[2]{45.5f,50.5f};
     float[] DamageChar = new float[2]{5.5f,5.3f};
@@ -29,11 +30,20 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
 
     private void Start()
     {
+        PhotonNetwork.ConnectUsingSettings();
+
         panelLoading.SetActive(true);
         panelMenuGame.SetActive(true);
         panelSetting.SetActive(false);
-        PhotonNetwork.ConnectUsingSettings();
         indexSelected = 0;
+
+        Character.sprite = imgsCharacter[indexSelected];
+        txtBlood.text = "Blood: " + BloodChar[indexSelected].ToString();
+        txtDamage.text = "Damage: " + DamageChar[indexSelected].ToString();
+        txtAmor.text = "Amor: " + AmorChar[indexSelected].ToString();
+        txtSpeed.text = "Speed: " + SpeedChar[indexSelected].ToString();
+
+        defaultName = "Dongpham";
     }
 
     public override void OnConnectedToMaster()
@@ -99,7 +109,7 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
     public void OnClickbtnPlay()
     {
         PlayerPrefs.SetInt("SelectedCharacter", indexSelected);
-        if (string.IsNullOrEmpty(ipfUsername.text)) PlayerPrefs.SetString("Username", "DongPham");
+        if (string.IsNullOrEmpty(ipfUsername.text)) PlayerPrefs.SetString("Username", defaultName);
         else PlayerPrefs.SetString("Username", ipfUsername.text);
 
         PhotonNetwork.JoinLobby();

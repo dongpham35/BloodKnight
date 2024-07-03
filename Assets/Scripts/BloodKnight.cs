@@ -1,20 +1,23 @@
+using Photon.Pun;
+using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
-using TreeEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-public class BloodKnight : MonoBehaviour
+public class BloodKnight : MonoBehaviourPunCallbacks
 {
     [SerializeField] float     CoolDownAttack;
+    [SerializeField] GameObject canvasAction;
+    [SerializeField] GameObject canvasInfor;
 
     private Rigidbody2D        rb2D;
     private Animator           animator;
     private SpriteRenderer     spriteRenderer;
     private BoxCollider2D      boxCollider;
-    private Camera             cam;
+    private PhotonView         view;
 
     [SerializeField] Button    btnRight;
     [SerializeField] Button    btnLeft;
@@ -30,6 +33,8 @@ public class BloodKnight : MonoBehaviour
     private float              Speed;
     private float              Damage;
     private float              Roll_Speed;
+    private int                level;
+    private int                levelup;
 
     private bool               isDeath;
     private bool               isRoll = false;
@@ -48,112 +53,168 @@ public class BloodKnight : MonoBehaviour
     private float              TimeBeAttacked;
     private bool               CanBeAction;
 
+
+    float[] AddBloodWhenUp_level = new float[] { 0.2f, 0.4f, 0.6f, 0.8f, 1.0f, 1.2f ,1.4f ,1.6f, 1.8f, 2.0f};
+    float[] AddAmorWhenUp_level = new float[] {0.2f, 0.3f, 0.5f, 0.6f, 0.8f, 0.9f, 1.1f, 1.2f, 1.3f,1.4f };
+    float[] AddDamageWhenUp_level = new float[] {0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.2f };
+    float[] AddSpeedWhenUp_level = new float[] {0.2f, 0.3f, 0.5f, 0.7f, 0.8f, 0.9f, 1.2f, 1.4f , 1.5f, 1.6f};
+
+    private void Awake()
+    {
+        view = GetComponent<PhotonView>();
+        GetComponentInChildren<Camera>().enabled = false;
+        GetComponentInChildren<AudioListener>().enabled = false;
+        canvasAction.SetActive(false);
+        canvasInfor.SetActive(false);
+
+    }
     private void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
-        animator = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        boxCollider = GetComponent<BoxCollider2D>();
-        cam = Camera.main;
-        cam.transform.SetParent(transform);
-        cam.transform.position = new Vector3(0, 1, -10);
-
-        rightHanlder = btnRight.GetComponent<UiButtonHanlder>();
-        leftHanlder = btnLeft.GetComponent<UiButtonHanlder>();
-        attackHanlder = btnAttack.GetComponent<UiButtonHanlder>();
-        jumpHanlder = btnJump.GetComponent<UiButtonHanlder>();
-        blockHanlder = btnBlock.GetComponent<UiButtonHanlder>();
-
-        Speed = transform.GetComponent<BaseObject>().Speed;
-        Damage = transform.GetComponent<BaseObject>().Damage;
-        Roll_Speed = transform.GetComponent<BaseObject>().Roll_Speed ;
-        Direction = Vector2.right;
-
-        LastTimeAttack = Time.time;
-
-        Shield.GetComponent<BoxCollider2D>().enabled = false;
-        if (PlayerPrefs.HasKey("username"))
+        if (view.IsMine)
         {
-            Username.text = PlayerPrefs.GetString("username");
+            GetComponentInChildren<Camera>().enabled = true;
+            canvasAction.SetActive(true);
+            canvasInfor.SetActive(true);
+            rb2D = GetComponent<Rigidbody2D>();
+            animator = GetComponent<Animator>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
+            boxCollider = GetComponent<BoxCollider2D>();
+
+            rightHanlder = btnRight.GetComponent<UiButtonHanlder>();
+            leftHanlder = btnLeft.GetComponent<UiButtonHanlder>();
+            attackHanlder = btnAttack.GetComponent<UiButtonHanlder>();
+            jumpHanlder = btnJump.GetComponent<UiButtonHanlder>();
+            blockHanlder = btnBlock.GetComponent<UiButtonHanlder>();
+
+            Speed = transform.GetComponent<BaseObject>().Speed;
+            Damage = transform.GetComponent<BaseObject>().Damage;
+            Roll_Speed = transform.GetComponent<BaseObject>().Roll_Speed;
+
+            Direction = Vector2.right;
+
+            LastTimeAttack = Time.time;
+
+            Shield.GetComponent<BoxCollider2D>().enabled = false;
+            if (PlayerPrefs.HasKey("Username"))
+            {
+                Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
+            }
+
+            CanBeAction = true;
+            level = 0;
+            photonView.RPC("DataSynchronization", RpcTarget.OthersBuffered, Username.text);
+        }
+        else
+        {
+            canvasInfor.SetActive(true);
         }
 
-        CanBeAction = true;
     }
 
     private void Update()
     {
-        if(transform.GetComponent<BaseObject>().currenHealth == 0)
+        if (view.IsMine)
         {
-            isDeath = true;
-        }
-        if(!isDeath)
-        {
-            if (Time.time - TimeBeAttacked > 0.7f) CanBeAction = true;
-            if(CanBeAction)
+            
+            if (transform.GetComponent<BaseObject>().currenHealth == 0)
             {
-                OnClickLeftBtn();
-                OnClickRightBtn();
-                OnClickAttackBtn();
-                OnClickBlockBtn();
-                OnClickJumpBtn();
-
+                isDeath = true;
             }
-            UpdateAnimation();
-        }
-        else
-        {
-            animator.SetTrigger("Death");
-            StartCoroutine(ReturnMenuGame());
-            SceneManager.LoadScene("MenuGame");
-        }
-    }
-
-    IEnumerator ReturnMenuGame()
-    {
-        yield return new WaitForSeconds(1.5f);
-    }
-    void UpdateAnimation()
-    {
-        if (rb2D.velocity.x == 0) statePlayer = NorState.Idel;
-        if (rb2D.velocity.y > .1f)
-        {
-            statePlayer = NorState.Jump;
-            if (attackHanlder.isButtonHeld) animator.SetTrigger("Jump_Attack");
-        }
-        
-        if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
-        if (transform.GetComponent<BaseObject>().isHurt)
-        {
-            TimeBeAttacked = Time.time;
-            CanBeAction = false;
-            animator.SetTrigger("Hurt");
-            transform.GetComponent<BaseObject>().isHurt = false;
-        }
-
-        if (isRoll)
-        {
-            if (statePlayer == NorState.Roll)
+            if (!isDeath)
             {
-                if (!isChangeBoxSize)
+                if (Time.time - TimeBeAttacked > 0.7f) CanBeAction = true;
+                if (CanBeAction)
                 {
-                    boxCollider.offset = new Vector2(boxCollider.offset.x, boxCollider.offset.y * 2);
-                    boxCollider.size = new Vector2(boxCollider.size.x, boxCollider.size.y / 2);
-                    isChangeBoxSize = true;
+                    OnClickLeftBtn();
+                    OnClickRightBtn();
+                    OnClickAttackBtn();
+                    OnClickBlockBtn();
+                    OnClickJumpBtn();
+
+                }
+                UpdateAnimation();
+                if(level < levelup)
+                {
+                    for(int i = level; i<levelup; i++)
+                    {
+                        GetComponent<BaseObject>().Blood += AddBloodWhenUp_level[i];
+                        GetComponent<BaseObject>().Amor += AddAmorWhenUp_level[i];
+                        GetComponent<BaseObject>().Damage += AddDamageWhenUp_level[i];
+                        GetComponent<BaseObject>().Speed += AddSpeedWhenUp_level[i];
+                        GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + AddBloodWhenUp_level[i], 0, GetComponent<BaseObject>().Blood);
+                        GetComponent<BaseObject>().healthBar.maxValue = GetComponent<BaseObject>().Blood;
+                        GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
+                        Speed = GetComponent<BaseObject>().Speed;
+                        Damage = GetComponent<BaseObject>().Damage;
+                        level++;
+                    }
+                    Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
                 }
             }
             else
             {
-                if (isChangeBoxSize)
-                {
-                    boxCollider.offset = new Vector2(boxCollider.offset.x, boxCollider.offset.y / 2);
-                    boxCollider.size = new Vector2(boxCollider.size.x, boxCollider.size.y * 2);
-                    isRoll = false;
-                    isChangeBoxSize = false;
-                }
+                animator.SetTrigger("Death");
+                MapSystem.instance.PlayerDied();
 
             }
         }
-        animator.SetInteger("NorState", (int) statePlayer);
+        
+    }
+
+
+    [PunRPC]
+    public void DataSynchronization(string username)
+    {
+        Username.text = username;
+    }
+
+
+    void UpdateAnimation()
+    {
+        if(view.IsMine)
+        {
+            if (rb2D.velocity.x == 0) statePlayer = NorState.Idel;
+            if (rb2D.velocity.y > .1f)
+            {
+                statePlayer = NorState.Jump;
+                if (attackHanlder.isButtonHeld) animator.SetTrigger("Jump_Attack");
+            }
+
+            if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
+            if (GetComponent<BaseObject>().isHurt)
+            {
+                TimeBeAttacked = Time.time;
+                CanBeAction = false;
+                animator.SetTrigger("Hurt");
+                GetComponent<BaseObject>().isHurt = false;
+            }
+
+            if (isRoll)
+            {
+                if (statePlayer == NorState.Roll)
+                {
+                    if (!isChangeBoxSize)
+                    {
+                        boxCollider.offset = new Vector2(boxCollider.offset.x, boxCollider.offset.y * 2);
+                        boxCollider.size = new Vector2(boxCollider.size.x, boxCollider.size.y / 2);
+                        isChangeBoxSize = true;
+                    }
+                }
+                else
+                {
+                    if (isChangeBoxSize)
+                    {
+                        boxCollider.offset = new Vector2(boxCollider.offset.x, boxCollider.offset.y / 2);
+                        boxCollider.size = new Vector2(boxCollider.size.x, boxCollider.size.y * 2);
+                        isRoll = false;
+                        isChangeBoxSize = false;
+                    }
+
+                }
+            }
+            photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriteRenderer.flipX);
+            animator.SetInteger("NorState", (int)statePlayer);
+        }
     }
 
     private void OnClickRightBtn()
@@ -166,7 +227,7 @@ public class BloodKnight : MonoBehaviour
             spriteRenderer.flipX = false;
             Direction = Vector2.right;
             
-            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+            rb2D.velocity = new Vector2(Direction.x * Speed * 0.5f, rb2D.velocity.y);
         }
 
         if(rightHanlder.isDoubleClick)
@@ -179,6 +240,8 @@ public class BloodKnight : MonoBehaviour
 
             rightHanlder.isDoubleClick = false;
         }
+
+
     }
 
     private void OnClickLeftBtn()
@@ -190,7 +253,7 @@ public class BloodKnight : MonoBehaviour
             spriteRenderer.flipX = true;
             Direction = Vector2.left;
 
-            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+            rb2D.velocity = new Vector2(Direction.x * Speed * 0.5f, rb2D.velocity.y);
         }
 
         if (leftHanlder.isDoubleClick)
@@ -217,12 +280,34 @@ public class BloodKnight : MonoBehaviour
                 {
                     if (ray.collider.CompareTag("Shield")) return;
                     BaseObject obj = ray.collider.GetComponent<BaseObject>();
-                    obj.OnBeAttacked(Damage);
+                    if (obj != null)
+                    {
+                        obj.OnBeAttacked(Damage);
+                        if (obj.currenHealth == 0)
+                        {
+                            GetComponent<BaseObject>().EXP += obj.EXP;
+                            levelup = (int)(Mathf.Log(GetComponent<BaseObject>().EXP, 2));
+                            Debug.Log("Up level: " + levelup);
+                        }
+                        obj.isHurt = false;
+                        PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                        if (targetPhotonView != null)
+                        {
+                            targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                        }
+                    }
                 }
             }
         }
     }
 
+
+    [PunRPC]
+    public void SendViewIdBeAttacked(float damage)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.OnBeAttacked(damage);
+    }
     private void OnClickJumpBtn()
     {
         if (jumpHanlder.isButtonHeld && isGround())
@@ -249,7 +334,32 @@ public class BloodKnight : MonoBehaviour
 
     private bool isGround()
     {
-        return Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.size, 0f, Vector2.down, LayerMask.GetMask("Ground"));
+        return Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.bounds.size, 0f, Vector2.down, .1f, LayerMask.GetMask("Ground"));
     }
 
+    [PunRPC]
+    public void UpdateSpriteRenderer(bool isFlipX)
+    {
+        SpriteRenderer spri = GetComponent<SpriteRenderer>();
+        spri.flipX = isFlipX;
+    }
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision != null && collision.gameObject.CompareTag("Fruit"))
+        {
+            Fruit f = collision.gameObject.GetComponent<Fruit>();
+            GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + f.health, 0, GetComponent<BaseObject>().Blood);
+            GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
+            photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().Blood, GetComponent<BaseObject>().currenHealth);
+            Destroy(collision.gameObject);
+        }
+    }
+
+    [PunRPC]
+    public void UpdateHealthBar(float maxBlood, float currentHealth)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.healthBar.maxValue = maxBlood;
+        obj.healthBar.value = currentHealth;
+    }
 }

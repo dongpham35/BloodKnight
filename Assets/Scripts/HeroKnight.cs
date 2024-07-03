@@ -1,14 +1,19 @@
+using Photon.Pun;
+using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-public class HeroKnight : MonoBehaviour
+public class HeroKnight : MonoBehaviourPunCallbacks
 {
     [SerializeField] float  CoolDownAttack = 0.4f;
     [SerializeField] float  RefreshAttack = 1f;
+    [SerializeField] GameObject canvasAction;
+    [SerializeField] GameObject canvasInfor;
 
     [SerializeField] Button btnRight;
     [SerializeField] Button btnLeft;
@@ -22,8 +27,7 @@ public class HeroKnight : MonoBehaviour
     private Animator        animator2D;
     private SpriteRenderer  spriterenderer2D;
     private BoxCollider2D   boxcollider2D;
-    private Camera          mainCam;
-
+    private PhotonView      view;
     enum                     NorState { Idle, Run, Jump, Fall, Roll}
     NorState                 statePlayer = NorState.Idle;
 
@@ -44,142 +48,197 @@ public class HeroKnight : MonoBehaviour
     private int             comboAttack = 0;
     private float           TimeBeAttacked;
     private bool            CanBeAction;
+    private int             level;
+    private int             levelup;
 
     private float           Speed;
     private float           Roll_Speed;
     private float           Damage;
 
+
+    float[] AddBloodWhenUp_level = new float[] {0.1f,0.3f,0.5f,0.7f,0.9f,01.1f,1.3f,1.5f , 1.7f, 1.9f};
+    float[] AddAmorWhenUp_level = new float[] {0.1f,0.4f,0.7f,1.0f,1.2f,1.1f,0.9f,0.7f, 0.8f, 1.0f };
+    float[] AddDamageWhenUp_level = new float[] {0.1f,0.2f,0.3f,0.4f,0.5f,0.6f,0.7f,0.8f,0.9f,1.0f };
+    float[] AddSpeedWhenUp_level = new float[] {0.1f, 0.5f, 0.5f, 0.7f, 0.7f, 0.9f, 0.9f, 1.1f, 1.3f,1.3f };
+
+
+    private void Awake()
+    {
+        view = GetComponent<PhotonView>();
+        GetComponentInChildren<Camera>().enabled = false;
+        GetComponentInChildren<AudioListener>().enabled = false;
+        canvasAction.SetActive(false);
+        canvasInfor.SetActive(false);
+    }
     private void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
-        animator2D = GetComponent<Animator>();
-        spriterenderer2D = GetComponent<SpriteRenderer>();
-        boxcollider2D = GetComponent<BoxCollider2D>();
-        Direction = Vector2.right;
 
-        Right_Hanlder = btnRight.GetComponent<UiButtonHanlder>();
-        Left_Hanlder = btnLeft.GetComponent<UiButtonHanlder>();
-        Attack_Hanlder =btnAttack.GetComponent<UiButtonHanlder>();
-        Jump_Hanlder = btnJump.GetComponent<UiButtonHanlder>();
-        Block_Hanlder = btnBlock.GetComponent<UiButtonHanlder>();
-
-        Speed = transform.GetComponent<BaseObject>().Speed;
-        Roll_Speed = transform.GetComponent<BaseObject>().Roll_Speed;
-        Damage = transform.GetComponent<BaseObject>().Damage;
-
-        mainCam = Camera.main;
-        mainCam.transform.SetParent(transform);
-        mainCam.transform.position = new Vector3(0, 1, -10);
-
-        Shield.GetComponent<BoxCollider2D>().enabled = false;
-
-        if (PlayerPrefs.HasKey("username"))
+        if (view.IsMine)
         {
-            Username.text = PlayerPrefs.GetString("username");
+            GetComponentInChildren<Camera>().enabled = true;
+            canvasAction.SetActive (true);
+            canvasInfor.SetActive (true);
+
+            rb2D = GetComponent<Rigidbody2D>();
+            animator2D = GetComponent<Animator>();
+            spriterenderer2D = GetComponent<SpriteRenderer>();
+            boxcollider2D = GetComponent<BoxCollider2D>();
+            Direction = Vector2.right;
+
+            Right_Hanlder = btnRight.GetComponent<UiButtonHanlder>();
+            Left_Hanlder = btnLeft.GetComponent<UiButtonHanlder>();
+            Attack_Hanlder = btnAttack.GetComponent<UiButtonHanlder>();
+            Jump_Hanlder = btnJump.GetComponent<UiButtonHanlder>();
+            Block_Hanlder = btnBlock.GetComponent<UiButtonHanlder>();
+
+            Speed = transform.GetComponent<BaseObject>().Speed;
+            Roll_Speed = transform.GetComponent<BaseObject>().Roll_Speed;
+            Damage = transform.GetComponent<BaseObject>().Damage;
+
+
+            Shield.GetComponent<BoxCollider2D>().enabled = false;
+
+            if (PlayerPrefs.HasKey("Username"))
+            {
+                Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
+            }
+
+            CanBeAction = true;
+
+            photonView.RPC("DataSynchronization", RpcTarget.OthersBuffered, Username.text);
+        }
+        else
+        {
+            canvasInfor.SetActive(true);
         }
 
-        CanBeAction = true;
     }
 
 
     private void Update()
     {
-        TimeSinceAttack += Time.deltaTime;
-        if(transform.GetComponent<BaseObject>().currenHealth == 0)
+        if(view.IsMine)
         {
-            isDeath = true;
-        }
-        if (!isDeath)
-        {
-            if (Time.time - TimeBeAttacked > 0.5f) CanBeAction = true;
-            if (CanBeAction)
+            TimeSinceAttack += Time.deltaTime;
+            if (GetComponent<BaseObject>().currenHealth == 0)
             {
-                RightBtn();
-                LeftBtn();
-                AttackBtn();
-                JumpBtn();
-                BlockBtn();
+                isDeath = true;
             }
-
-            UpdateAnimation();
-        }
-        else
-        {
-            animator2D.SetTrigger("Death");
-            StartCoroutine(ReturnMenuGame());
-            SceneManager.LoadScene("MenuGame");
-        }
-        
-    }
-
-    IEnumerator ReturnMenuGame()
-    {
-        yield return new WaitForSeconds(1.5f);
-    }
-
-    private void UpdateAnimation()
-    {
-        if (rb2D.velocity.x == 0) statePlayer = NorState.Idle;
-        if (rb2D.velocity.y > .1f) statePlayer = NorState.Jump;
-        if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
-        if (transform.GetComponent<BaseObject>().isHurt)
-        {
-            TimeBeAttacked = Time.time;
-            CanBeAction = false;
-            animator2D.SetTrigger("Hurt");
-            transform.GetComponent<BaseObject>().isHurt = false;
-        }
-        if (isRoll)
-        {
-            if(statePlayer == NorState.Roll)
+            if (!isDeath)
             {
-                if(!isChangeBoxSize)
+                if (Time.time - TimeBeAttacked > 0.5f) CanBeAction = true;
+                if (CanBeAction)
                 {
-                    boxcollider2D.offset = new Vector2(boxcollider2D.offset.x, boxcollider2D.offset.y / 2);
-                    boxcollider2D.size = new Vector2(boxcollider2D.size.x, boxcollider2D.size.y / 2);
-                    isChangeBoxSize = true;
+                    RightBtn();
+                    LeftBtn();
+                    AttackBtn();
+                    JumpBtn();
+                    BlockBtn();
+                }
+
+                UpdateAnimation();
+                if (level < levelup)
+                {
+                    for (int i = level; i < levelup; i++)
+                    {
+                        GetComponent<BaseObject>().Blood += AddBloodWhenUp_level[i];
+                        GetComponent<BaseObject>().Amor += AddAmorWhenUp_level[i];
+                        GetComponent<BaseObject>().Damage += AddDamageWhenUp_level[i];
+                        GetComponent<BaseObject>().Speed += AddSpeedWhenUp_level[i];
+                        GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + AddBloodWhenUp_level[i], 0, GetComponent<BaseObject>().Blood);
+                        GetComponent<BaseObject>().healthBar.maxValue = GetComponent<BaseObject>().Blood;
+                        GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
+                        Speed = GetComponent<BaseObject>().Speed;
+                        Damage = GetComponent<BaseObject>().Damage;
+                        photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().Blood, GetComponent<BaseObject>().currenHealth);
+                        level++;
+                    }
+                    Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
                 }
             }
             else
             {
-                if(isChangeBoxSize)
-                {
-                    boxcollider2D.offset = new Vector2(boxcollider2D.offset.x, boxcollider2D.offset.y * 2);
-                    boxcollider2D.size = new Vector2(boxcollider2D.size.x, boxcollider2D.size.y * 2);
-                    isRoll = false;
-                    isChangeBoxSize = false;
-                }
-                
+                animator2D.SetTrigger("Death");
+                MapSystem.instance.PlayerDied();
             }
         }
+        
+    }
 
-        animator2D.SetInteger("NorState", (int) statePlayer);
+    [PunRPC]
+    public void DataSynchronization(string username)
+    {
+        Username.text = username;
+    }
+
+
+    private void UpdateAnimation()
+    {
+        if (view.IsMine)
+        {
+            if (rb2D.velocity.x == 0) statePlayer = NorState.Idle;
+            if (rb2D.velocity.y > .1f) statePlayer = NorState.Jump;
+            if (rb2D.velocity.y < -.1f) statePlayer = NorState.Fall;
+            if (GetComponent<BaseObject>().isHurt)
+            {
+                TimeBeAttacked = Time.time;
+                CanBeAction = false;
+                animator2D.SetTrigger("Hurt");
+                GetComponent<BaseObject>().isHurt = false;
+            }
+            if (isRoll)
+            {
+                if (statePlayer == NorState.Roll)
+                {
+                    if (!isChangeBoxSize)
+                    {
+                        boxcollider2D.offset = new Vector2(boxcollider2D.offset.x, boxcollider2D.offset.y / 2);
+                        boxcollider2D.size = new Vector2(boxcollider2D.size.x, boxcollider2D.size.y / 2);
+                        isChangeBoxSize = true;
+                    }
+                }
+                else
+                {
+                    if (isChangeBoxSize)
+                    {
+                        boxcollider2D.offset = new Vector2(boxcollider2D.offset.x, boxcollider2D.offset.y * 2);
+                        boxcollider2D.size = new Vector2(boxcollider2D.size.x, boxcollider2D.size.y * 2);
+                        isRoll = false;
+                        isChangeBoxSize = false;
+                    }
+
+                }
+            }
+            photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriterenderer2D.flipX);
+            animator2D.SetInteger("NorState", (int)statePlayer);
+        }
     }
 
     private void RightBtn()
     {
-        if(Right_Hanlder.isButtonHeld)
+        if (Right_Hanlder.isButtonHeld)
         {
             statePlayer = NorState.Run;
-            Shield.transform.position = transform.position + new Vector3(0, 0.7f, 0);
+            Shield.transform.position = transform.position + new Vector3(0, 0.7f, 0);    
             spriterenderer2D.flipX = false;
             Direction = Vector2.right;
-            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+            rb2D.velocity = new Vector2(Direction.x * Speed * 0.5f, rb2D.velocity.y);
 
-        }
+        }        
 
-        if(Right_Hanlder.isDoubleClick)
+        if (Right_Hanlder.isDoubleClick)
         {
-            isRoll = true;
-            Direction = Vector2.right;
-            spriterenderer2D.flipX = false;
-            statePlayer = NorState.Roll;
+             isRoll = true;
+             Direction = Vector2.right;
+             spriterenderer2D.flipX = false;
+             statePlayer = NorState.Roll;
 
-            rb2D.velocity = new Vector2(Direction.x * Roll_Speed, rb2D.velocity.y);
+             rb2D.velocity = new Vector2(Direction.x * Roll_Speed, rb2D.velocity.y);
 
-            Right_Hanlder.isDoubleClick = false;
+             Right_Hanlder.isDoubleClick = false;
         }
-    }
+
+     }
 
     private void LeftBtn()
     {
@@ -189,7 +248,7 @@ public class HeroKnight : MonoBehaviour
             Shield.transform.position = transform.position + new Vector3(-0.75f, 0.7f, 0);
             spriterenderer2D.flipX = true;
             Direction = Vector2.left;
-            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+            rb2D.velocity = new Vector2(Direction.x * Speed * 0.5f, rb2D.velocity.y);
 
         }
         if (Left_Hanlder.isDoubleClick)
@@ -203,6 +262,7 @@ public class HeroKnight : MonoBehaviour
 
             Left_Hanlder.isDoubleClick = false;
         }
+
     }
 
     private void AttackBtn()
@@ -225,11 +285,35 @@ public class HeroKnight : MonoBehaviour
             {
                 if (ray.collider.CompareTag("Shield")) return;
                 BaseObject obj = ray.collider.GetComponent<BaseObject>();
-                obj.OnBeAttacked(Damage);
+                if (obj != null)
+                {
+                    obj.OnBeAttacked(Damage);
+                    if (obj.currenHealth == 0)
+                    {
+                        GetComponent<BaseObject>().EXP += obj.EXP;
+                        levelup = (int)(Mathf.Log(GetComponent<BaseObject>().EXP,2));
+                        Debug.Log("Up level: " + levelup);
+
+                    }
+                    obj.isHurt = false;
+                    PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                    if (targetPhotonView != null)
+                    {
+                        targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                    }
+                }
             }
             animator2D.SetTrigger("Attack" + comboAttack);
             TimeSinceAttack = 0f;
         }
+    }
+
+
+    [PunRPC]
+    public void SendViewIdBeAttacked(float damage)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.OnBeAttacked(damage);
     }
 
     private void JumpBtn()
@@ -243,6 +327,7 @@ public class HeroKnight : MonoBehaviour
 
     private void BlockBtn()
     {
+        if (!view.IsMine) return;
         if (Block_Hanlder.isButtonHeld && !isBlock && isGround())
         {
             isBlock = true;
@@ -273,5 +358,31 @@ public class HeroKnight : MonoBehaviour
         return Physics2D.BoxCast(boxcollider2D.bounds.center, boxcollider2D.bounds.size, 0f, Vector2.down, .1f, LayerMask.GetMask("Ground"));
     }
 
+    [PunRPC]
+    public void UpdateSpriteRenderer(bool isFlipX)
+    {
+        SpriteRenderer sprire = GetComponent<SpriteRenderer>();
+        sprire.flipX = isFlipX;
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision != null && collision.gameObject.CompareTag("Fruit"))
+        {
+            Fruit f = collision.gameObject.GetComponent<Fruit>();
+            GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + f.health, 0, GetComponent<BaseObject>().Blood);
+            GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
+            photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().Blood, GetComponent<BaseObject>().currenHealth);
+            Destroy(collision.gameObject);
+        }
+    }
+
+    [PunRPC]
+    public void UpdateHealthBar(float maxBlood, float currentHealth)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.healthBar.maxValue = maxBlood;
+        obj.healthBar.value = currentHealth;
+    }
 
 }

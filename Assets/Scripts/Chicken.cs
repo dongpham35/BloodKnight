@@ -1,8 +1,9 @@
+using Photon.Pun;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Chicken : MonoBehaviour
+public class Chicken : MonoBehaviourPunCallbacks
 {
     [SerializeField] Vector2      SpawnPoint;
 
@@ -12,6 +13,7 @@ public class Chicken : MonoBehaviour
     private Rigidbody2D           rb2D;
     private Animator              animator;
     private SpriteRenderer        spriteRenderer;
+    private PhotonView            view;
 
     private float                 Speed;
     private float                 Damage;
@@ -30,12 +32,19 @@ public class Chicken : MonoBehaviour
     private float                 LimitedTimeToChangeState;
     private float                 LastTimeAttack;
     private float                 CoolDownAttack;
+
+    private void Awake()
+    {
+        view = GetComponent<PhotonView>();
+    }
     private void Start()
     {
-        rb2D = GetComponent<Rigidbody2D>();
-        animator = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
-
+       if(view.IsMine)
+        {
+            rb2D = GetComponent<Rigidbody2D>();
+            animator = GetComponent<Animator>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
         Speed = GetComponent<BaseObject>().Speed;
         Damage = GetComponent<BaseObject>().Damage;
 
@@ -60,56 +69,59 @@ public class Chicken : MonoBehaviour
     private void Update()
     {
 
-        if (GetComponent<BaseObject>().currenHealth == 0) isDeath = true;
-
-        if (isDeath) Destroy(gameObject);
-        
-        if(!isDeath)
+        if (view.IsMine)
         {
-            LastTimeAttack += Time.deltaTime;
-            StartCoroutine(GetPlayersInRoom());
-            if (focusPlayer != null && MinDistance <= 5.5f && !isMoveToSpawnPoint) isSawPlayer = true;
-            else isSawPlayer = false;
-            //Move to Spawn point when enemy are distancing spawn point 15f
-            if (Vector2.Distance(transform.position, SpawnPoint) >= 15f && !isMoveToSpawnPoint)
-            {
-                Vector2 look = SpawnPoint - new Vector2(transform.position.x, transform.position.y);
-                Direction.x = look.normalized.x;
-                isReadyNorMove = true;
-                isMoveToSpawnPoint = true;
-                isSawPlayer = false;
-                focusPlayer = null;
-                MinDistance = 0.0f;
-            }
-            if (isMoveToSpawnPoint && Vector2.Distance(transform.position, SpawnPoint) <= 1.5f)
-            {
-                isMoveToSpawnPoint = false;
-            }
+            if (GetComponent<BaseObject>().currenHealth == 0) isDeath = true;
 
-            if (rb2D.velocity.x != 0)
+            if (isDeath) Destroy(gameObject);
+
+            if (!isDeath)
             {
-                RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
-                if(ray.collider != null)
+                LastTimeAttack += Time.deltaTime;
+                StartCoroutine(GetPlayersInRoom());
+                if (focusPlayer != null && MinDistance <= 5.5f && !isMoveToSpawnPoint) isSawPlayer = true;
+                else isSawPlayer = false;
+                //Move to Spawn point when enemy are distancing spawn point 15f
+                if (Vector2.Distance(transform.position, SpawnPoint) >= 15f && !isMoveToSpawnPoint)
                 {
-                    Direction *= -1;
-                    rb2D.velocity = rb2D.velocity.x * Direction;
+                    Vector2 look = SpawnPoint - new Vector2(transform.position.x, transform.position.y);
+                    Direction.x = look.normalized.x;
+                    isReadyNorMove = true;
+                    isMoveToSpawnPoint = true;
+                    isSawPlayer = false;
+                    focusPlayer = null;
+                    MinDistance = 0.0f;
                 }
-            }
-            LastTimeMove += Time.deltaTime;
-            if(LastTimeMove >= LimitedTimeToChangeState)
-            {
-                LastTimeMove = 0.0f;
-                LimitedTimeToChangeState = Random.Range(4, 9) / 1.5f;
-                isReadyNorMove = !isReadyNorMove;
-            }
-            if(isReadyNorMove && !isSawPlayer) NorMove();
+                if (isMoveToSpawnPoint && Vector2.Distance(transform.position, SpawnPoint) <= 1.5f)
+                {
+                    isMoveToSpawnPoint = false;
+                }
 
-            if (isSawPlayer)
-            {
-                MoveToPlayer();
-                HitPlayer();
+                if (rb2D.velocity.x != 0)
+                {
+                    RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
+                    if (ray.collider != null)
+                    {
+                        Direction *= -1;
+                        rb2D.velocity = rb2D.velocity.x * Direction;
+                    }
+                }
+                LastTimeMove += Time.deltaTime;
+                if (LastTimeMove >= LimitedTimeToChangeState)
+                {
+                    LastTimeMove = 0.0f;
+                    LimitedTimeToChangeState = Random.Range(4, 9) / 1.5f;
+                    isReadyNorMove = !isReadyNorMove;
+                }
+                if (isReadyNorMove && !isSawPlayer) NorMove();
+
+                if (isSawPlayer)
+                {
+                    MoveToPlayer();
+                    HitPlayer();
+                }
+                UpdateAnimation();
             }
-            UpdateAnimation();
         }
 
 
@@ -133,10 +145,16 @@ public class Chicken : MonoBehaviour
             stateChicken = NorState.Idel;
         }
 
-
+        photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriteRenderer.flipX);
         animator.SetInteger("NorState", (int) stateChicken);
     }
 
+    [PunRPC]
+    public void UpdateSpriteRenderer(bool state)
+    {
+        SpriteRenderer sprite = GetComponent<SpriteRenderer>();
+        sprite.flipX = state;
+    }
     private void NorMove()
     {
         rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
@@ -145,7 +163,10 @@ public class Chicken : MonoBehaviour
     {
         Vector3 look = focusPlayer.transform.position - transform.position;
         Direction.x = look.normalized.x;
-        rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+        if (Vector3.Distance(focusPlayer.transform.position, transform.position) >= 0.4f)
+        {
+            rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+        }
         RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
         if (ray.collider != null && MinDistance >= 0.7f)
         {
@@ -193,9 +214,24 @@ public class Chicken : MonoBehaviour
                 LastTimeAttack = 0.0f;
                 if (ray.collider.CompareTag("Shield")) return;
                 BaseObject obj = ray.collider.GetComponent<BaseObject>();
-                obj.OnBeAttacked(Damage);
+                if (obj != null)
+                {
+                    obj.OnBeAttacked(Damage);
+                    PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                    if (targetPhotonView != null)
+                    {
+                        targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                    }
+                }
             }
         }
         
+    }
+
+    [PunRPC]
+    public void SendViewIdBeAttacked( float damage)
+    {
+        BaseObject obj = GetComponent<BaseObject>();
+        obj.OnBeAttacked(damage);
     }
 }
