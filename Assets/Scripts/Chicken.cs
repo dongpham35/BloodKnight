@@ -13,6 +13,7 @@ public class Chicken : MonoBehaviourPunCallbacks
     private Rigidbody2D           rb2D;
     private Animator              animator;
     private SpriteRenderer        spriteRenderer;
+    private BoxCollider2D         boxcollider2d;
     private PhotonView            view;
 
     private float                 Speed;
@@ -44,9 +45,11 @@ public class Chicken : MonoBehaviourPunCallbacks
             rb2D = GetComponent<Rigidbody2D>();
             animator = GetComponent<Animator>();
             spriteRenderer = GetComponent<SpriteRenderer>();
+            boxcollider2d = GetComponent<BoxCollider2D>();
+            Speed = GetComponent<BaseObject>().Speed;
+            Damage = GetComponent<BaseObject>().Damage;
         }
-        Speed = GetComponent<BaseObject>().Speed;
-        Damage = GetComponent<BaseObject>().Damage;
+        
 
         Direction = Vector2.right;
 
@@ -79,6 +82,7 @@ public class Chicken : MonoBehaviourPunCallbacks
             {
                 LastTimeAttack += Time.deltaTime;
                 StartCoroutine(GetPlayersInRoom());
+                if (focusPlayer != null) MinDistance = Vector2.Distance(transform.position, focusPlayer.transform.position);
                 if (focusPlayer != null && MinDistance <= 5.5f && !isMoveToSpawnPoint) isSawPlayer = true;
                 else isSawPlayer = false;
                 //Move to Spawn point when enemy are distancing spawn point 15f
@@ -163,14 +167,14 @@ public class Chicken : MonoBehaviourPunCallbacks
     {
         Vector3 look = focusPlayer.transform.position - transform.position;
         Direction.x = look.normalized.x;
-        if (Vector3.Distance(focusPlayer.transform.position, transform.position) >= 0.4f)
+        if (Vector3.Distance(focusPlayer.transform.position, transform.position) >= 1.2f)
         {
             rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
         }
         RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Ground"));
-        if (ray.collider != null && MinDistance >= 0.7f)
+        if (ray.collider != null && IsGround())
         {
-            rb2D.velocity = new Vector2(rb2D.velocity.x, Speed * 1.3f);
+            rb2D.velocity = new Vector2(rb2D.velocity.x, Speed * 1.9f);
         }
     }
     IEnumerator GetPlayersInRoom()
@@ -233,5 +237,10 @@ public class Chicken : MonoBehaviourPunCallbacks
     {
         BaseObject obj = GetComponent<BaseObject>();
         obj.OnBeAttacked(damage);
+    }
+
+    private bool IsGround()
+    {
+        return Physics2D.BoxCast(boxcollider2d.bounds.center, boxcollider2d.bounds.size, .0f, Vector2.down, .1f, LayerMask.GetMask("Ground"));
     }
 }

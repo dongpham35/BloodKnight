@@ -13,20 +13,24 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
     [SerializeField] private GameObject     panelMenuGame;
     [SerializeField] private GameObject     panelSetting;
     [SerializeField] private Slider         Volume;
+    [SerializeField] private TMP_Text       txtNameCharacter;
     [SerializeField] private Image          Character;
     [SerializeField] private TMP_Text       txtBlood;
     [SerializeField] private TMP_Text       txtDamage;
     [SerializeField] private TMP_Text       txtAmor;
     [SerializeField] private TMP_Text       txtSpeed;
     [SerializeField] private TMP_InputField ipfUsername;
+    [SerializeField] private AudioSource    soundtrack;
+
 
     private int                              indexSelected;
     private string                           defaultName;
 
     float[] BloodChar = new float[2]{45.5f,50.5f};
-    float[] DamageChar = new float[2]{5.5f,5.3f};
+    float[] DamageChar = new float[2]{6.2f,5.5f};
     float[] AmorChar = new float[2]{3.2f,3.5f};
-    float[] SpeedChar = new float[2]{6.5f,7.5f};
+    float[] SpeedChar = new float[2]{6.3f,6.0f};
+    string[] NameChar = new string[] {"Blood knight","Hero Knight" };
 
     private void Start()
     {
@@ -42,8 +46,11 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
         txtDamage.text = "Damage: " + DamageChar[indexSelected].ToString();
         txtAmor.text = "Amor: " + AmorChar[indexSelected].ToString();
         txtSpeed.text = "Speed: " + SpeedChar[indexSelected].ToString();
+        txtNameCharacter.text = NameChar[indexSelected];
 
         defaultName = "Dongpham";
+
+        soundtrack.Play();
     }
 
     public override void OnConnectedToMaster()
@@ -93,6 +100,7 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
         txtDamage.text = "Damage: " + DamageChar[indexSelected].ToString();
         txtAmor.text = "Amor: " + AmorChar[indexSelected].ToString();
         txtSpeed.text = "Speed: " +  SpeedChar[indexSelected].ToString();
+        txtNameCharacter.text = NameChar[indexSelected];
     }
 
     public void OnClockbtnBack()
@@ -104,6 +112,7 @@ public class MenuGameSystem : MonoBehaviourPunCallbacks
         txtDamage.text = "Damage: " + DamageChar[indexSelected].ToString();
         txtAmor.text = "Amor: " + AmorChar[indexSelected].ToString();
         txtSpeed.text = "Speed: " + SpeedChar[indexSelected].ToString();
+        txtNameCharacter.text = NameChar[indexSelected];
     }
 
     public void OnClickbtnPlay()

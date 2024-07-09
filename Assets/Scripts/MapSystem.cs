@@ -14,12 +14,14 @@ public class MapSystem : MonoBehaviourPunCallbacks
     [SerializeField] GameObject[]            SpawnPoint;
     [SerializeField] GameObject[]            Fruit;
     [SerializeField] GameObject[]            SpawnPointFruit;
+    [SerializeField] AudioSource             SoundTrack;
 
     private List<GameObject>                 Chickens;
     private List<GameObject>                 AngryPigs;
     private List<GameObject>                 Fruits;
     [SerializeField] private int             maxChickeninRoom;
     [SerializeField] private int             maxAngryPigInRoom;
+    [SerializeField] private int             maxFruitInRoom;
 
     private int                              indexSelectedCharacter;
 
@@ -40,6 +42,7 @@ public class MapSystem : MonoBehaviourPunCallbacks
         else indexSelectedCharacter = 0;
         PhotonNetwork.JoinOrCreateRoom("Map", new RoomOptions() { MaxPlayers = 5 }, TypedLobby.Default);
 
+        SoundTrack.Play();
         
     }
 
@@ -59,7 +62,7 @@ public class MapSystem : MonoBehaviourPunCallbacks
         PhotonNetwork.Instantiate(Character[indexSelectedCharacter].name, Vector2.zero, Quaternion.identity);
         StartCoroutine(SpawnEnemies(Chickens, Enemies[0], SpawnPoint[0].transform.position, maxChickeninRoom, 9.9f));
         StartCoroutine(SpawnEnemies(AngryPigs, Enemies[1], SpawnPoint[1].transform.position, maxAngryPigInRoom, 17.9f));
-        StartCoroutine(SpawnFruits(Fruits, Fruit, SpawnPointFruit, 20, 30f));
+        StartCoroutine(SpawnFruits(Fruits, Fruit, SpawnPointFruit, maxFruitInRoom, 30f));
     }
 
 
@@ -106,7 +109,7 @@ public class MapSystem : MonoBehaviourPunCallbacks
 
     public void PlayerDied()
     {
-        if (PhotonNetwork.IsMasterClient)
+        if (PhotonNetwork.InRoom)
         {
             PhotonNetwork.Disconnect();
         }

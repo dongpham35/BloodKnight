@@ -27,6 +27,14 @@ public class BloodKnight : MonoBehaviourPunCallbacks
     [SerializeField] GameObject Shield;
     [SerializeField] TMP_Text  Username;
 
+    [SerializeField] AudioSource hitAudio;
+    [SerializeField] AudioSource attackAudio;
+    [SerializeField] AudioSource blockAudio;
+    [SerializeField] AudioSource jumpAudio;
+    [SerializeField] AudioSource collectItemAudio;
+    [SerializeField] AudioSource moveAudio;
+
+
     enum NorState { Idel, Run, Jump, Fall, Roll}
     NorState                   statePlayer = NorState.Idel;
 
@@ -73,6 +81,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
         if (view.IsMine)
         {
             GetComponentInChildren<Camera>().enabled = true;
+            GetComponentInChildren<AudioListener>().enabled = true;
             canvasAction.SetActive(true);
             canvasInfor.SetActive(true);
             rb2D = GetComponent<Rigidbody2D>();
@@ -97,7 +106,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
             Shield.GetComponent<BoxCollider2D>().enabled = false;
             if (PlayerPrefs.HasKey("Username"))
             {
-                Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
+                Username.text = $"LV:{level}-" + PlayerPrefs.GetString("Username");
             }
 
             CanBeAction = true;
@@ -148,7 +157,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
                         Damage = GetComponent<BaseObject>().Damage;
                         level++;
                     }
-                    Username.text = $"LV:{level}_" + PlayerPrefs.GetString("Username");
+                    Username.text = $"LV:{level}-" + PlayerPrefs.GetString("Username");
                 }
             }
             else
@@ -221,7 +230,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
     {
         if (rightHanlder.isButtonHeld)
         {
-
+            moveAudio.Play();
             Shield.transform.position = transform.position + new Vector3(0.8f, -0.5f, 0);
             statePlayer = NorState.Run;
             spriteRenderer.flipX = false;
@@ -232,6 +241,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
 
         if(rightHanlder.isDoubleClick)
         {
+            moveAudio.Play();
             isRoll = true;
             statePlayer = NorState.Roll;
             spriteRenderer.flipX = false;
@@ -248,6 +258,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
     {
         if (leftHanlder.isButtonHeld)
         {
+            moveAudio.Play();
             Shield.transform.position = transform.position + new Vector3(-0.05f, -0.5f, 0);
             statePlayer = NorState.Run;
             spriteRenderer.flipX = true;
@@ -258,6 +269,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
 
         if (leftHanlder.isDoubleClick)
         {
+            moveAudio.Play();
             isRoll = true;
             statePlayer = NorState.Roll;
             spriteRenderer.flipX = true;
@@ -273,23 +285,31 @@ public class BloodKnight : MonoBehaviourPunCallbacks
         {
             if(Time.time - LastTimeAttack > CoolDownAttack)
             {
+                attackAudio.Play();
                 LastTimeAttack = Time.time;
                 animator.SetTrigger("Attack");
-                RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.42f * Direction.x, -0.25f, 0), Direction, 0.5f, LayerMask.GetMask("Player", "Enemy", "Shield"));
+                RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.42f * Direction.x, -0.25f, 0), Direction, 1.2f, LayerMask.GetMask("Player", "Enemy", "Shield"));
                 if(ray.collider != null)
                 {
-                    if (ray.collider.CompareTag("Shield")) return;
+                    if (ray.collider.CompareTag("Shield"))
+                    {
+                        blockAudio.Play();
+                        return;
+                    }
                     BaseObject obj = ray.collider.GetComponent<BaseObject>();
                     if (obj != null)
                     {
+                        hitAudio.Play();
                         obj.OnBeAttacked(Damage);
                         if (obj.currenHealth == 0)
                         {
                             GetComponent<BaseObject>().EXP += obj.EXP;
                             levelup = (int)(Mathf.Log(GetComponent<BaseObject>().EXP, 2));
-                            Debug.Log("Up level: " + levelup);
                         }
                         obj.isHurt = false;
+                        GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + Damage*0.2f, 0, GetComponent<BaseObject>().Blood);
+                        GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
+                        photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().currenHealth);
                         PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
                         if (targetPhotonView != null)
                         {
@@ -312,6 +332,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
     {
         if (jumpHanlder.isButtonHeld && isGround())
         {
+            jumpAudio.Play();
             rb2D.velocity = new Vector2(rb2D.velocity.x, Speed * 1.2f);
         }
     }
@@ -347,19 +368,19 @@ public class BloodKnight : MonoBehaviourPunCallbacks
     {
         if (collision != null && collision.gameObject.CompareTag("Fruit"))
         {
+            collectItemAudio.Play();
             Fruit f = collision.gameObject.GetComponent<Fruit>();
             GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + f.health, 0, GetComponent<BaseObject>().Blood);
             GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
-            photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().Blood, GetComponent<BaseObject>().currenHealth);
+            photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().currenHealth);
             Destroy(collision.gameObject);
         }
     }
 
     [PunRPC]
-    public void UpdateHealthBar(float maxBlood, float currentHealth)
+    public void UpdateHealthBar( float currentHealth)
     {
         BaseObject obj = GetComponent<BaseObject>();
-        obj.healthBar.maxValue = maxBlood;
         obj.healthBar.value = currentHealth;
     }
 }

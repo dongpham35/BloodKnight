@@ -13,9 +13,13 @@ public class Fruit : MonoBehaviour
 
     private Vector2 Direction;
 
-    private void Start()
+    private void Awake()
     {
         view = GetComponent<PhotonView>();
+    }
+
+    private void Start()
+    {
         if (view.IsMine)
         {
             rb = GetComponent<Rigidbody2D>();
@@ -26,10 +30,13 @@ public class Fruit : MonoBehaviour
 
     private void Update()
     {
-        if(rb.velocity.x == 0)
+        if(view.IsMine)
         {
-            Direction *= -1;
-            rb.velocity = Direction * speed;
+            if (rb.velocity.x == 0)
+            {
+                Direction *= -1;
+                rb.velocity = Direction * speed;
+            }
         }
     }
 

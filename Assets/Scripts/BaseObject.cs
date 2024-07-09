@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 public class BaseObject : MonoBehaviourPunCallbacks
 {
+
     public float Blood;
     public float Damage;
     public float Speed;

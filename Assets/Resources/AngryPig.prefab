@@ -704,12 +704,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a27da84635c7a6a4ba7b5622fe3fe19c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Blood: 45.8
-  Damage: 4.1
-  Speed: 4.6
+  Blood: 20
+  Damage: 1.9
+  Speed: 3.8
   Roll_Speed: 0
-  Amor: 3.8
-  EXP: 1
+  Amor: 2.3
+  EXP: 2
   currenHealth: 0
   healthBar: {fileID: 8811929697258282469}
   isHurt: 0
