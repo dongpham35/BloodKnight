@@ -293,7 +293,7 @@ public class HeroKnight : MonoBehaviourPunCallbacks
             {
                 comboAttack = 1;
             }
-            RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.35f * Direction.x, 0.6f, 0), Direction, 0.9f, LayerMask.GetMask("Player", "Enemy", "Shield"));
+            RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.35f * Direction.x, 0.6f, 0), Direction, 0.7f, LayerMask.GetMask("Player", "Enemy", "Shield"));
             if(ray.collider != null)
             {
                 if (ray.collider.CompareTag("Shield"))
@@ -313,7 +313,7 @@ public class HeroKnight : MonoBehaviourPunCallbacks
 
                     }
                     obj.isHurt = false;
-                    GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + Damage * 0.2f, 0, GetComponent<BaseObject>().Blood);
+                    GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + Damage * 0.03f, 0, GetComponent<BaseObject>().Blood);
                     GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
                     photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().currenHealth);
                     PhotonView targetPhotonView = obj.GetComponent<PhotonView>();

@@ -243,4 +243,40 @@ public class Chicken : MonoBehaviourPunCallbacks
     {
         return Physics2D.BoxCast(boxcollider2d.bounds.center, boxcollider2d.bounds.size, .0f, Vector2.down, .1f, LayerMask.GetMask("Ground"));
     }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (view.IsMine)
+        {
+            if (collision.collider != null)
+            {
+                if (collision.collider.CompareTag("Player") || collision.collider.CompareTag("Shield")) rb2D.velocity = Vector2.zero;
+                if (collision.collider.CompareTag("Shield") && LastTimeAttack >= CoolDownAttack)
+                {
+                    LastTimeAttack = 0.0f;
+                    return;
+                }
+                if (collision.collider.CompareTag("Player") && LastTimeAttack >= CoolDownAttack)
+                {
+                    LastTimeAttack = 0.0f;
+                    BaseObject obj = collision.gameObject.GetComponent<BaseObject>();
+                    if (obj != null)
+                    {
+                        obj.OnBeAttacked(Damage);
+                        PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                        if (targetPhotonView != null)
+                        {
+                            targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (view.IsMine) MoveToPlayer();
+    }
 }

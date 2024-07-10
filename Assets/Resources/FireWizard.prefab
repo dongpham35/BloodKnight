@@ -183,7 +183,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDrag: 0
   m_AngularDrag: 0.05
-  m_GravityScale: 0
+  m_GravityScale: 1
   m_Material: {fileID: 0}
   m_Interpolate: 0
   m_SleepingMode: 1
@@ -227,14 +227,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02aa9b8355e012849912ae0f0f122ee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  PointLimited:
+  - {x: 58, y: -4, z: 0}
+  - {x: 68, y: -4, z: 0}
   LimiedPointX:
   - 57
-  - 70
+  - 65
   LimiedPointY:
   - 1
-  - -4
+  - -2
   ProjectilePrefab: {fileID: 7912916583525999500, guid: ac537823877308a4292072728534f645, type: 3}
-  CoolDownAttack: 1.5
+  CoolDownAttack: 3
 --- !u!114 &94360803541144468
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -248,8 +251,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Blood: 450.6
-  Damage: 8.6
-  Speed: 5.3
+  Damage: 7.5
+  Speed: 4.5
   Roll_Speed: 5.3
   Amor: 10.5
   EXP: 20

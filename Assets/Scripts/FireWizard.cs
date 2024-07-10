@@ -7,10 +7,11 @@ using UnityEngine.SceneManagement;
 
 public class FireWizard : MonoBehaviourPunCallbacks
 {
+    [SerializeField] Vector3[]    PointLimited;
     [SerializeField] float[]      LimiedPointX;
     [SerializeField] float[]      LimiedPointY;
     [SerializeField] GameObject   ProjectilePrefab;
-    [SerializeField] float        CoolDownAttack = 1.5f;
+    [SerializeField] float        CoolDownAttack;
 
     List<GameObject>          players = new List<GameObject>();
     private GameObject        focusPlayer;
@@ -32,7 +33,6 @@ public class FireWizard : MonoBehaviourPunCallbacks
 
     private Vector2           Direction;
     private bool              isDeath;
-    private bool              isShow;
 
     private Vector3           pointFocus;
     private bool              NorAttack;
@@ -41,6 +41,7 @@ public class FireWizard : MonoBehaviourPunCallbacks
     private bool              StateSkillAttack;
     private bool              CanBeAction;
     private float             TimeBeAttacked;
+    private int               IndexPointLimited;
 
     private void Awake()
     {
@@ -62,16 +63,14 @@ public class FireWizard : MonoBehaviourPunCallbacks
 
         focusPlayer = null;
         minDistance = 0;
-        pointX = Random.Range(LimiedPointX[0], LimiedPointX[1]);
-        pointY = Random.Range(LimiedPointY[0], LimiedPointY[1]);
-        pointFocus = new Vector3(pointX, pointY, 0);
+        IndexPointLimited = 0;
+        pointFocus = PointLimited[IndexPointLimited];
         LastTimeDamaged = 0.0f;
         CanBeAction = true;
     }
 
     private void Update()
     {
-
         if (view.IsMine)
         {
             if (transform.GetComponent<BaseObject>().currenHealth == 0)
@@ -98,6 +97,11 @@ public class FireWizard : MonoBehaviourPunCallbacks
             {
                 LastTimeDamaged += Time.deltaTime;
                 if (Time.time - TimeBeAttacked >= 1.2f) CanBeAction = true;
+                if(focusPlayer != null)
+                {
+                    if (Vector2.Distance(transform.position, focusPlayer.transform.position) >= 10f ) focusPlayer = null;
+
+                }
                 if (CanBeAction)
                 {
                     if (focusPlayer != null)
@@ -107,7 +111,6 @@ public class FireWizard : MonoBehaviourPunCallbacks
                     }
                     else
                     {
-                        Direction.x = pointFocus.x - transform.position.x;
                         MoveNormal();
                     }
                 }
@@ -123,6 +126,7 @@ public class FireWizard : MonoBehaviourPunCallbacks
             else
             {
                 MapSystem.instance.BossIsDie();
+                Destroy(gameObject);
             }
         }
 
@@ -136,7 +140,7 @@ public class FireWizard : MonoBehaviourPunCallbacks
             GameObject[] li_Player = GameObject.FindGameObjectsWithTag("Player");
             foreach(GameObject player in  li_Player)
             {
-                if(Vector2.Distance(transform.position, player.transform.position) <= 5f)
+                if(Vector2.Distance(transform.position, player.transform.position) <= 10f)
                 {
                     if (focusPlayer == null)
                     {
@@ -154,7 +158,7 @@ public class FireWizard : MonoBehaviourPunCallbacks
                 }
                 players.Add(player);
             }
-            yield return new WaitForSeconds(10f);
+            yield return new WaitForSeconds(3f);
         }
     }
 
@@ -175,25 +179,28 @@ public class FireWizard : MonoBehaviourPunCallbacks
     private void UpdateAnimation()
     {
         
-        if(Direction.x != 0f)
+        if(view.IsMine)
         {
-            if (Direction.x > .1f) spriterenderer.flipX = false;
-            else spriterenderer.flipX = true;
+            if (Direction.x != 0f)
+            {
+                if (Direction.x > .1f) spriterenderer.flipX = false;
+                else spriterenderer.flipX = true;
 
-            stateEnemy = NorState.Move;
-        }
-        else
-        {
-            stateEnemy = NorState.Idle ;
-        }
+                stateEnemy = NorState.Move;
+            }
+            else
+            {
+                stateEnemy = NorState.Idle;
+            }
 
-        if(transform.GetComponent<BaseObject>().isHurt)
-        {
-            animator.SetTrigger("Hurt");
-        }
+            if (transform.GetComponent<BaseObject>().isHurt)
+            {
+                animator.SetTrigger("Hurt");
+            }
 
-        photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriterenderer.flipX);
-        animator.SetInteger("NorState", (int)stateEnemy);
+            photonView.RPC("UpdateSpriteRenderer", RpcTarget.OthersBuffered, spriterenderer.flipX);
+            animator.SetInteger("NorState", (int)stateEnemy);
+        }
 
     }
 
@@ -206,15 +213,21 @@ public class FireWizard : MonoBehaviourPunCallbacks
 
     private void MoveToAttackPlayer()
     {
-        if (Random.Range(0, 50) % 2 == 0 && !NorAttack && !SkillAttack) NorAttack = true;
-        else if((Random.Range(0, 50) % 2 != 0 && !NorAttack && !SkillAttack)) SkillAttack = true;
-        if (NorAttack)
+        if (view.IsMine)
         {
-            MoveNorToPlayer();
-        }
-        if(SkillAttack && !StateSkillAttack)
-        {
-            TeleportSkill();
+            if (IsGround())
+            {
+                if (Random.Range(0, 50) % 2 == 0 && !NorAttack && !SkillAttack) NorAttack = true;
+                else if ((Random.Range(0, 50) % 2 != 0 && !NorAttack && !SkillAttack)) SkillAttack = true;
+                if (NorAttack)
+                {
+                    MoveNorToPlayer();
+                }
+                if (SkillAttack && !StateSkillAttack)
+                {
+                    TeleportSkill();
+                }
+            }
         }
     }
 
@@ -222,46 +235,110 @@ public class FireWizard : MonoBehaviourPunCallbacks
     {
         if(Vector2.Distance(transform.position, pointFocus) < 0.2f)
         {
-            pointX = Random.Range(LimiedPointX[0], LimiedPointX[1]);
-            pointY = Random.Range(LimiedPointY[0], LimiedPointY[1]);
-            pointFocus = new Vector3(pointX, pointY, 0);
+            IndexPointLimited++;
+            if (IndexPointLimited > 1) IndexPointLimited = 0;
+            pointFocus = PointLimited[IndexPointLimited];
         }
-        transform.position = Vector2.MoveTowards(transform.position, pointFocus, Time.deltaTime * Speed * 0.5f);
-        stateEnemy = NorState.Move;
+        Direction.x = pointFocus.x - transform.position.x;
+        transform.position = Vector2.MoveTowards(transform.position, pointFocus, Time.deltaTime * Speed);
     }
 
 
     private void MoveNorToPlayer()
     {
-        //move enemy to player
-        if (Vector2.Distance(transform.position, focusPlayer.transform.position) < 0.5f) NorAttack = false;
-        transform.position = Vector2.MoveTowards(transform.position, focusPlayer.transform.position, Time.deltaTime * Speed);
-        Direction.x = (focusPlayer.transform.position - transform.position).x;
-        if(LastTimeDamaged > CoolDownAttack)
+        //move enemy to player        
+        if(focusPlayer != null)
         {
-            RaycastHit2D ray = Physics2D.Raycast(transform.position, Direction, 0.5f, LayerMask.GetMask("Player", "Shield"));
-            if (ray.collider != null)
+            Vector3 look = focusPlayer.transform.position - transform.position;
+            Direction.x = look.normalized.x;
+            if (Vector3.Distance(focusPlayer.transform.position, transform.position) >= 0.7f)
+            {
+                rb2D.velocity = new Vector2(Direction.x * Speed, rb2D.velocity.y);
+            }
+        }
+
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player") || collision.gameObject.CompareTag("Shield"))
+        {
+            rb2D.velocity = Vector2.zero;
+            
+            if(LastTimeDamaged >= CoolDownAttack)
             {
                 LastTimeDamaged = 0.0f;
+                if (collision.collider.CompareTag("Shield")) return;
+                if (collision.collider.CompareTag("Player"))
+                {
+                    animator.SetTrigger("Attack");
+                    LastTimeDamaged = 0.0f;
+                    BaseObject obj = collision.gameObject.GetComponent<BaseObject>();
+                    if (obj != null)
+                    {
+                        obj.OnBeAttacked(Damage);
+                        PhotonView targetPhotonView = collision.gameObject.GetComponent<PhotonView>();
+                        if (targetPhotonView != null)
+                        {
+                            targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
+                        }
+                    }
+                    NorAttack = false;
+                    
+                }
+            }
+        }
+    }
+
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player") || collision.gameObject.CompareTag("Shield"))
+        {
+            rb2D.velocity = Vector2.zero;
+            LastTimeDamaged += Time.deltaTime;
+            
+            if(LastTimeDamaged >= CoolDownAttack)
+            {
                 animator.SetTrigger("Attack");
-                if (ray.collider.gameObject.CompareTag("Shield")) return;
-                BaseObject obj = ray.collider.GetComponent<BaseObject>();
+                LastTimeDamaged = 0.0f;
+                BaseObject obj = collision.gameObject.GetComponent<BaseObject>();
                 if (obj != null)
                 {
                     obj.OnBeAttacked(Damage);
-                    PhotonView targetPhotonView = obj.GetComponent<PhotonView>();
+                    PhotonView targetPhotonView = collision.gameObject.GetComponent<PhotonView>();
                     if (targetPhotonView != null)
                     {
                         targetPhotonView.RPC("SendViewIdBeAttacked", RpcTarget.Others, Damage);
                     }
                 }
                 NorAttack = false;
+                if(Random.Range(0, 5) % 2 == 0 )
+                {
+                    TeleportSkill();
+                }
+            }
+
+        }
+    }
+
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (view.IsMine)
+        {
+            if (collision.gameObject.CompareTag("Player") || collision.gameObject.CompareTag("Shield"))
+            {
+                MoveToAttackPlayer();
             }
         }
     }
 
+    private bool IsGround()
+    {
+        return Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.bounds.size, .0f, Vector2.down, .1f, LayerMask.GetMask("Ground"));
+    }
+
     [PunRPC]
-    public void SendViewIdBeAttacked(int viewId, float damage)
+    public void SendViewIdBeAttacked(float damage)
     {
         BaseObject obj = GetComponent<BaseObject>();
         obj.OnBeAttacked(damage);
@@ -314,12 +391,9 @@ public class FireWizard : MonoBehaviourPunCallbacks
         boxCollider.enabled = true;
         gameObject.GetComponentInChildren<Canvas>().enabled = true;
         animator.SetTrigger("Show");
-        yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length);
-        if(LastTimeDamaged > 1.2f)
-        {
-            CloneProjetile(ProjectilePrefab, Random.Range(6, 12), transform.position, Speed * 2.1f);
-        }
-        
+        CloneProjetile(ProjectilePrefab, Random.Range(6, 12), transform.position, Speed * 2.1f);
+
+        yield return new WaitForSeconds(0f);
     }
 
 }

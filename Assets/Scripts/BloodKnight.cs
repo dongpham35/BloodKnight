@@ -288,7 +288,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
                 attackAudio.Play();
                 LastTimeAttack = Time.time;
                 animator.SetTrigger("Attack");
-                RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.42f * Direction.x, -0.25f, 0), Direction, 1.2f, LayerMask.GetMask("Player", "Enemy", "Shield"));
+                RaycastHit2D ray = Physics2D.Raycast(transform.position + new Vector3(0.42f * Direction.x, -0.25f, 0), Direction, 0.7f, LayerMask.GetMask("Player", "Enemy", "Shield"));
                 if(ray.collider != null)
                 {
                     if (ray.collider.CompareTag("Shield"))
@@ -307,7 +307,7 @@ public class BloodKnight : MonoBehaviourPunCallbacks
                             levelup = (int)(Mathf.Log(GetComponent<BaseObject>().EXP, 2));
                         }
                         obj.isHurt = false;
-                        GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + Damage*0.2f, 0, GetComponent<BaseObject>().Blood);
+                        GetComponent<BaseObject>().currenHealth = Mathf.Clamp(GetComponent<BaseObject>().currenHealth + Damage*0.05f, 0, GetComponent<BaseObject>().Blood);
                         GetComponent<BaseObject>().healthBar.value = GetComponent<BaseObject>().currenHealth;
                         photonView.RPC("UpdateHealthBar", RpcTarget.Others, GetComponent<BaseObject>().currenHealth);
                         PhotonView targetPhotonView = obj.GetComponent<PhotonView>();

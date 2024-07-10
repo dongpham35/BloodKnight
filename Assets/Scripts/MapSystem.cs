@@ -25,7 +25,7 @@ public class MapSystem : MonoBehaviourPunCallbacks
 
     private int                              indexSelectedCharacter;
 
-    private float                            TimeToArriedBoss = 60f;
+    private float                            TimeToArriedBoss = 10f;
     private bool                             isBossArried;
 
     private void Awake()
